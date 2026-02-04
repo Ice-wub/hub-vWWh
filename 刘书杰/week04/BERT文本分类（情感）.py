@@ -10,9 +10,8 @@ from sklearn.preprocessing import LabelEncoder
 from datasets import Dataset
 import numpy as np
 
-
 # 加载和预处理数据
-dataset_df = pd.read_csv("../Week01/Week01/dataset.csv", sep="\t", header=None)
+dataset_df = pd.read_csv("Simplified_Chinese_Multi-Emotion_Dialogue_Dataset.csv", sep=",", header=None)
 
 # 初始化 LabelEncoder，用于将文本标签转换为数字标签
 lbl = LabelEncoder()
@@ -40,8 +39,8 @@ model = BertForSequenceClassification.from_pretrained("E:/AI/Week04/models/googl
 # truncation=True：如果文本过长则截断
 # padding=True：对齐所有序列长度，填充到最长
 # max_length=64：最大序列长度
-train_encodings = tokenizer(x_train, truncation=True, padding=True, max_length=25)
-test_encodings = tokenizer(x_test, truncation=True, padding=True, max_length=25)
+train_encodings = tokenizer(x_train, truncation=True, padding=True, max_length=64)
+test_encodings = tokenizer(x_test, truncation=True, padding=True, max_length=64)
 
 # 将编码后的数据和标签转换为 Hugging Face `datasets` 库的 Dataset 对象
 train_dataset = Dataset.from_dict({
