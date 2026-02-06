@@ -1,0 +1,96 @@
+#模型下载
+# from modelscope import snapshot_download
+# model_dir = snapshot_download('google-bert/bert-base-chinese')
+# print(model_dir)
+
+import pandas as pd
+import torch
+from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
+from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments
+from sklearn.preprocessing import LabelEncoder
+from datasets import Dataset
+import numpy as np
+# 读取数据
+data = pd.read_csv('online_shopping_10_cats.csv', sep=',', header=None)
+# 打乱数据
+data = shuffle(data)
+# print(data.head(10))
+lbl = LabelEncoder()
+labels =lbl.fit_transform(data[0])
+print(labels)
+print(len(set(data[0])))  # 查看标签数量
+texts = list(data[2])
+# 分割数据为训练集和测试集
+x_train, x_test, train_labels, test_labels = train_test_split(
+    texts,
+    labels,
+    test_size=0.2,
+    stratify=labels
+)
+# 从预训练模型加载分词器和模型
+tokenizer = BertTokenizer.from_pretrained('/Users/lookupthesky/.cache/modelscope/hub/models/google-bert/bert-base-chinese')
+model = BertForSequenceClassification.from_pretrained('/Users/lookupthesky/.cache/modelscope/hub/models/google-bert/bert-base-chinese', num_labels=10)
+# 使用分词器对训练集和测试集的文本进行编码
+train_encodings = tokenizer(x_train, truncation=True, padding=True, max_length=100)
+test_encoding = tokenizer(x_test, truncation=True, padding=True, max_length=100)
+# 将编码后的数据转换为hugging face 'datasets'库的Dataset对象
+train_dataset = Dataset.from_dict({
+    'input_ids': train_encodings['input_ids'],
+    'attention_mask': train_encodings['attention_mask'],
+    'labels': train_labels
+})
+test_dataset = Dataset.from_dict({
+    'input_ids': train_encodings['input_ids'],
+    'attention_mask': train_encodings['attention_mask'],
+    'labels': test_labels
+})
+
+# 定义用于计算评估指标的函数
+def compute_metrics(eval_pred):
+    logits, labels = eval_pred
+    predictions = np.argmax(logits, axis=1)
+    return {'accuracy': (predictions == labels).mean()}
+# 配置训练参数
+training_args = TrainingArguments(
+    output_dir='./results',
+    num_train_epochs=5,
+    per_device_train_batch_size=16,
+    per_device_eval_batch_size=16,
+    warmup_steps=500,
+    weight_decay=0.01,
+    logging_dir='./logs',
+    logging_steps=100,
+    eval_strategy="epoch",
+    save_strategy="epoch",
+    load_best_model_at_end=True,
+)
+# 实例化Trainier 简化模型训练代码
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=test_dataset,
+    compute_metrics=compute_metrics,
+)
+
+# 开始训练模型
+trainer.train()
+# 在测试集上进行最终评估
+trainer.evaluate()
+
+model_path = './results'
+tokenizer = BertTokenizer.from_pretrained(model_path)
+model = BertForSequenceClassification.from_pretrained(model_path)
+model.eval()
+def predict(text):
+    input = tokenizer(text, padding=True, truncation=True, max_length=100, return_tensors="pt")
+    with torch.no_grad():
+        output = model(input)
+        predict = torch.softmax(output.logits, dim=-1)
+    return predict.numpy()
+text = "手机坏了，拿去维修店修下"
+predictions = predict(text)
+print(predictions)
+
+
